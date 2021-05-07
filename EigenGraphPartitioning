@@ -1,0 +1,72 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr 19 10:10:32 2021
+
+@author: jwill
+"""
+
+def main(M, fn):
+    import numpy as np 
+    Parts = []; 
+    #Import the first level j=0 partition and calculate CV valu
+    #M,fn,f = init()
+    X = []; X.append(list(range(0,np.size(fn),1)))
+    m1, m2, f1, f2, x1, x2 = detPartitions(M, fn, X[0])
+    #Begin to partion the graph and find the best cross validation values for 
+    #levels j = 1...N where N is the number of nodes in the graph
+    Parts.append(M); Parts.append([m1,m2]); funN = []; funN.append(fn); 
+    funN.append([f1,f2]); X.append([x1,x2])
+    #Need to set ending conditions here probably something like N/2^j>2*log(N)
+    for partition in range(1,10):
+        LevMod = []; LevFun = []; LevX = []; 
+        for mods in range(np.size(Parts[partition])):
+            m1, m2, f1, f2, x1, x2 = detPartitions(Parts[partition][mods],funN[partition][mods], X[partition][mods])
+            if m1 !=-1 and m2!=-1:
+                LevX.append(x1); LevX.append(x2); LevMod.append([m1,m2]); LevFun.append(f1); LevFun.append(f2);
+            elif m1 ==-1 and m2!=-1:
+                LevX.append(x2); LevMod.append([m2]); LevFun.append(f2);
+            elif m1!=-1 and m2==-1:
+                LevX.append(x1); LevMod.append([m1]); LevFun.append(f1);
+            else:
+                continue
+        X.append(LevX); Parts.append(np.hstack(LevMod)); funN.append(LevFun);
+    return Parts, funN, X 
+
+
+
+#Partitions Graphs and signals (x required for signal reconstruction)
+
+def detPartitions(M, fn, x):
+    import numpy as np; import copy; from pygsp import graphs
+    #This sub determines the correct partition of a graph based on the sign 
+    # of the Fiedler vector, based on the HGLET method. 
+    p = np.asarray(list(range(0,M.N,1)))
+    w1 = copy.deepcopy(M.W.todense())
+    w2 = copy.deepcopy(M.W.todense())
+    try:
+        F = M.U[:,1];
+        p1 = p[F<=0]; p2 = p[F>0]
+        x = np.asarray(x)
+        x1 = x[p1]; x2 = x[p2]
+        f1 = fn[p1]; f2 = fn[p2]
+        w1 = w1[p1[:,None],p1[None,:]]
+        w2 = w2[p2[:,None],p2[None,:]]
+        if np.size(p1)<=1 and np.size(p2)<=1:
+            sg1 = -1; sg2 = -1
+        elif np.size(p1)<=1:
+            #This tree has ended with one singletary node
+            sg1 = -1;  sg2 = graphs.Graph(w2); 
+            sg2.set_coordinates(M.coords[p2]);
+            #sg2.compute_fourier_basis();
+        elif np.size(p2)<=1:
+            #This tree has ended with one singletary node
+            sg2 = -1; sg1 = graphs.Graph(w1); 
+            sg1.set_coordinates(M.coords[p1]);
+            #sg1.compute_fourier_basis();
+        else:
+            sg1 = graphs.Graph(w1); sg2 = graphs.Graph(w2)
+            sg1.set_coordinates(M.coords[p1]); sg2.set_coordinates(M.coords[p2]);
+            #sg1.compute_fourier_basis(); sg2.compute_fourier_basis();
+    except:
+        sg1 = -1; sg2 = -1; f1 = []; f2 = []; x1 = []; x2 = [];
+    return  sg1, sg2, f1, f2, x1, x2
