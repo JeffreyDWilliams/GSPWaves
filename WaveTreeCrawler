@@ -1,0 +1,92 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 30 10:57:05 2021
+
+@author: jwill
+"""
+
+#find the value of n for block thresholding
+def main(g, f, x):
+    import numpy as np
+    w = int(np.log(np.size(np.hstack(x[0]))));
+    w = 7;
+    XL = crawl(g,x,w) 
+    val, n = pointPredictor(g,f,x,XL)
+    return val, n
+
+def crawl(g,x,w):
+    import numpy as np; import copy
+    XL = [];
+    lev = np.shape(x)[0]-1
+    for i in range(np.size(x[0])):
+        j = 0;
+        levT = copy.deepcopy(lev);
+        index = np.asarray(np.where(x[levT][j] == i))
+        while len(index[0])<=0 or np.size(x[levT][j-1]) < w :
+            if j == np.shape(x[levT])[0]:
+                levT = levT-1
+                j=0
+            else:
+                index = np.asarray(np.where(x[levT][j] == i))
+                j = j+1
+        XL.append([i,levT,j-1,index])
+    return XL
+
+def pointPredictor(g,f,x,XL):
+    import copy
+    n = []
+    val = []
+    import numpy as np; from pygsp import graphs, filters
+    for i in range(np.shape(XL)[0]):
+        lev = 4
+        try: 
+            fil = filters.Meyer(g[XL[i][1]][XL[i][2]],lev)
+            c = fil.analyze(f[XL[i][1]][XL[i][2]])
+            cTemp = copy.deepcopy(c)
+            for j in range(g[XL[i][1]][XL[i][2]].N):
+                #create window of 3 coefficients 
+                LB = np.max([0,j-7])
+                UB = np.min([j+(7-(j-LB)),np.shape(c)[0]-1])
+                lb = np.max([0,j-3])
+                ub = np.min([j+(3-(j-lb)),np.shape(c)[0]-1])
+                #6.98
+                neighblock = 1-((np.linalg.norm(c[lb:ub,1:]))/(np.linalg.norm(c[LB:UB,1:])))
+                #neighblock = 1-(4.5404*(np.var(c[lb:ub,1:])*3)/(np.linalg.norm(c[LB:UB,1:])))
+                if neighblock<0 or np.isnan(neighblock):
+                    neighblock = 0
+                n.append(neighblock)
+                cTemp[j,1:] = cTemp[j,1:]*neighblock
+            c = cTemp
+            r = fil.synthesize(c)
+            val.append(r[XL[i][3]])
+        except:
+            val.append(30000)
+    return val, n
+
+def coeffPredictor(g,f,x,XL):
+    import copy; import numpy as np; from pygsp import graphs, filters
+    n = []
+    val = []
+    lev = 6
+    fil = filters.Meyer(g[0],lev)
+    c = fil.analyze(f[0])
+    cTemp = copy.deepcopy(c)
+    for i in range(np.shape(XL)[0]):
+        for j in range(g[XL[i][1]][XL[i][2]].N):
+            #create window of 3 coefficients 
+            LB = np.max([0,j-7])
+            UB = np.min([j+(7-(j-LB)),np.shape(c)[0]-1])
+            lb = np.max([0,j-3])
+            ub = np.min([j+(3-(j-lb)),np.shape(c)[0]-1])
+            #6.98
+            #neighblock = 1-((np.linalg.norm(c[lb:ub,1:]))/(np.linalg.norm(c[LB:UB,1:])))
+            neighblock =  1-((np.linalg.norm(c[lb:ub,1:]))/(np.linalg.norm(c[LB:UB,1:])))
+            if neighblock<0:
+                neighblock = 0
+            n.append(neighblock)
+            cTemp[j,1:] = cTemp[j,1:]*neighblock
+    c = cTemp
+    r = fil.synthesize(c)
+    return r, n
+
+    
